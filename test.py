@@ -11,16 +11,12 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client import tools
 
-
-# Enter your Google Developer Project number
+# Google Developer parameters
 PROJECT_NUMBER = 'evis-904'
-
 FLOW = flow_from_clientsecrets('client_secrets.json',
                                scope='https://www.googleapis.com/auth/bigquery')
 
-
 def main():
-
   storage = Storage('bigquery_credentials.dat')
   credentials = storage.get()
 
@@ -35,10 +31,12 @@ def main():
 
   try:
     query_request = bigquery_service.jobs()
-    query_data = {'query':'SELECT TOP( title, 10) as title, COUNT(*) as revision_count FROM [publicdata:samples.wikipedia] WHERE wp_namespace = 0;'}
-#    query_data = {'query':'SELECT Actor1Code FROM [gdelt-bq:full.events] LIMIT 5;'}
+    #query_data = {'query':'SELECT TOP( title, 10) as title, COUNT(*) as revision_count FROM [publicdata:samples.wikipedia] WHERE wp_namespace = 0;'}
+    #query_data = {'query':'SELECT MonthYear, Actor1Code, Actor2Code FROM [gdelt-bq:full.events] WHERE Actor1Code IS NOT NULL LIMIT 5'}
+    query_data = {'query':'SELECT Year, Actor1Name, Actor2Name, Count FROM ( SELECT Actor1Name, Actor2Name, Year, COUNT(*) Count, RANK() OVER(PARTITION BY YEAR ORDER BY Count DESC) rank FROM (SELECT Actor1Name, Actor2Name, Year FROM [gdelt-bq:full.events] WHERE Actor1Name < Actor2Name and Actor1CountryCode != \'\' and Actor2CountryCode != \'\' and Actor1CountryCode!=Actor2CountryCode), (SELECT Actor2Name Actor1Name, Actor1Name Actor2Name, Year FROM [gdelt-bq:full.events] WHERE Actor1Name > Actor2Name and Actor1CountryCode != \'\' and Actor2CountryCode != \'\' and Actor1CountryCode!=Actor2CountryCode), WHERE Actor1Name IS NOT null AND Actor2Name IS NOT null GROUP EACH BY 1, 2, 3 HAVING Count > 100 ) WHERE rank=1 ORDER BY Year'}
     query_response = query_request.query(projectId=PROJECT_NUMBER,
                                          body=query_data).execute()
+    #pretty printer
     print 'Query Results:'
     for row in query_response['rows']:
       result_row = []
@@ -55,4 +53,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
