@@ -1,6 +1,7 @@
 import httplib2
 import pprint
 import sys
+from client import *
 
 from apiclient.discovery import build
 from apiclient.errors import HttpError
@@ -11,29 +12,38 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client import tools
 
-# Google Developer parameters
-PROJECT_NUMBER = 'evis-904'
-FLOW = flow_from_clientsecrets('client_secrets.json',
-                               scope='https://www.googleapis.com/auth/bigquery')
+import datetime as dt
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 
 def main():
-  storage = Storage('bigquery_credentials.dat')
-  credentials = storage.get()
+  headers = ["Year", "Actor1Code", "Actor2Code", "EventCode", "QuadClass", "GoldsteinScale", "Actor1Geo_Lat", "Actor1Geo_Long", "Actor2Geo_Lat", "Actor2Geo_Long", "ActionGeo_Long", "ActionGeo_Lat"]
 
-  if credentials is None or credentials.invalid:
-    # Run oauth2 flow with default arguments.
-    credentials = tools.run_flow(FLOW, storage, tools.argparser.parse_args([]))
-
-  http = httplib2.Http()
-  http = credentials.authorize(http)
-
-  bigquery_service = build('bigquery', 'v2', http=http)
-
+  #, EventCode, QuadCategory, GoldsteinScale, Actor1Geo_Lat, Actor1Geo_Long, Actor2Geo_Lat, Actor2Geo_Long, ActionGeo_Long, ActionGeo_Lat,
   try:
     query_request = bigquery_service.jobs()
+    #most edited wikipedia articles
     #query_data = {'query':'SELECT TOP( title, 10) as title, COUNT(*) as revision_count FROM [publicdata:samples.wikipedia] WHERE wp_namespace = 0;'}
-    #query_data = {'query':'SELECT MonthYear, Actor1Code, Actor2Code FROM [gdelt-bq:full.events] WHERE Actor1Code IS NOT NULL LIMIT 5'}
-    query_data = {'query':'SELECT Year, Actor1Name, Actor2Name, Count FROM ( SELECT Actor1Name, Actor2Name, Year, COUNT(*) Count, RANK() OVER(PARTITION BY YEAR ORDER BY Count DESC) rank FROM (SELECT Actor1Name, Actor2Name, Year FROM [gdelt-bq:full.events] WHERE Actor1Name < Actor2Name and Actor1CountryCode != \'\' and Actor2CountryCode != \'\' and Actor1CountryCode!=Actor2CountryCode), (SELECT Actor2Name Actor1Name, Actor1Name Actor2Name, Year FROM [gdelt-bq:full.events] WHERE Actor1Name > Actor2Name and Actor1CountryCode != \'\' and Actor2CountryCode != \'\' and Actor1CountryCode!=Actor2CountryCode), WHERE Actor1Name IS NOT null AND Actor2Name IS NOT null GROUP EACH BY 1, 2, 3 HAVING Count > 100 ) WHERE rank=1 ORDER BY Year'}
+    #most defining events per year since 1979
+    query_data = {'query':'''SELECT Year, Actor1Code, Actor2Code, EventCode, QuadClass, GoldsteinScale, Actor1Geo_Lat, Actor1Geo_Long, Actor2Geo_Lat, Actor2Geo_Long, ActionGeo_Long, ActionGeo_Lat, Count FROM ( 
+                             SELECT Year, Actor1Code, Actor2Code, EventCode, QuadClass, GoldsteinScale, Actor1Geo_Lat, Actor1Geo_Long, Actor2Geo_Lat, Actor2Geo_Long, ActionGeo_Long, ActionGeo_Lat, COUNT(*) Count, RANK() OVER(PARTITION BY YEAR ORDER BY Count DESC) rank FROM (
+                             SELECT Year, Actor1Code, Actor2Code, EventCode, QuadClass, GoldsteinScale, Actor1Geo_Lat, Actor1Geo_Long, Actor2Geo_Lat, Actor2Geo_Long, ActionGeo_Long, ActionGeo_Lat
+                             FROM [gdelt-bq:full.events] 
+                             WHERE Actor1Code < Actor2Name 
+                               and Actor1CountryCode != \'\' 
+                               and Actor2CountryCode != \'\' 
+                               and Actor1CountryCode!=Actor2CountryCode), (
+                             SELECT Actor2Code Actor1Code, Actor1Code Actor2Code, Year, EventCode, QuadClass, GoldsteinScale, Actor1Geo_Lat, Actor1Geo_Long, Actor2Geo_Lat, Actor2Geo_Long, ActionGeo_Long, ActionGeo_Lat
+                             FROM [gdelt-bq:full.events] 
+                             WHERE Actor1Code > Actor2Code 
+                               and Actor1CountryCode != \'\' 
+                               and Actor2CountryCode != \'\' 
+                               and Actor1CountryCode!=Actor2CountryCode), 
+                             WHERE Actor1Code IS NOT null 
+                               AND Actor2Code IS NOT null GROUP EACH BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 HAVING Count > 100 ) 
+                             WHERE rank=1 ORDER BY Year'''}
     query_response = query_request.query(projectId=PROJECT_NUMBER,
                                          body=query_data).execute()
     #pretty printer
